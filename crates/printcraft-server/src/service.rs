@@ -80,8 +80,8 @@ impl PrintService {
             "SET_PRINT_STYLE" => self.cmd_set_print_style(args),
             "SET_PRINTER_INDEX" | "SET_PRINTER_INDEXA" => self.cmd_set_printer_index(args),
             "SET_PRINT_COPIES" => self.cmd_set_print_copies(args),
-            "PRINT" => self.cmd_print().await,
-            "PREVIEW" => self.cmd_preview().await,
+            "PRINT" => self.cmd_print(args).await,
+            "PREVIEW" => self.cmd_preview(args).await,
             "GET_PRINTER_COUNT" => self.cmd_get_printer_count().await,
             "GET_PRINTER_NAME" => self.cmd_get_printer_name(args).await,
             "GET_PRINT_IN_VALUE" => self.cmd_get_print_in_value(args).await,
@@ -522,11 +522,33 @@ impl PrintService {
         Ok(serde_json::json!({ "ok": true }))
     }
 
+    /// 从 args 构建 job（如果 current_job 为空）
+    fn get_or_create_job(&mut self, args: &serde_json::Value) -> Result<PrintJob> {
+        if self.current_job.is_some() {
+            return Ok(self.current_job.take().unwrap());
+        }
+        // 从 args 创建 job
+        let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("print");
+        let printer = args.get("printer").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let copies = args.get("copies").and_then(|v| v.as_u64()).unwrap_or(1) as u32;
+        let elements: Vec<printcraft_core::PrintElement> = args.get("elements")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
+        let page_config: printcraft_core::PageConfig = args.get("pageConfig")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
+
+        let mut job = PrintJob::new(name);
+        job.printer = printer;
+        job.copies = copies;
+        job.elements = elements;
+        job.page_config = page_config;
+        Ok(job)
+    }
+
     /// PRINT - 提交打印任务
-    async fn cmd_print(&mut self) -> Result<serde_json::Value> {
-        let job = self.current_job.take().ok_or_else(|| {
-            PrintCraftError::PrintJob("未初始化打印任务，请先调用 PRINT_INIT".to_string())
-        })?;
+    async fn cmd_print(&mut self, args: &serde_json::Value) -> Result<serde_json::Value> {
+        let job = self.get_or_create_job(args)?;
 
         tracing::info!("PRINT: rendering job '{}' with {} elements", job.name, job.elements.len());
 
@@ -551,15 +573,16 @@ impl PrintService {
     }
 
     /// PREVIEW - 渲染为 HTML + PDF，存储并返回预览 ID
-    async fn cmd_preview(&mut self) -> Result<serde_json::Value> {
-        let job = self.current_job.as_ref().ok_or_else(|| {
-            PrintCraftError::PrintJob("未初始化打印任务，请先调用 PRINT_INIT".to_string())
-        })?;
+    async fn cmd_preview(&mut self, args: &serde_json::Value) -> Result<serde_json::Value> {
+        let job = match &self.current_job {
+            Some(j) => j.clone(),
+            None => self.get_or_create_job(args)?,
+        };
 
         tracing::info!("PREVIEW: rendering job '{}' for preview", job.name);
 
-        let html = printcraft_render::template::assemble_html(job);
-        let pdf_bytes = self.renderer.render(job).await?;
+        let html = printcraft_render::template::assemble_html(&job);
+        let pdf_bytes = self.renderer.render(&job).await?;
         let preview_id = uuid::Uuid::new_v4().to_string();
 
         self.previews.write().await.insert(
