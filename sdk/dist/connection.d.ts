@@ -16,6 +16,10 @@ export declare class Connection {
     private heartbeatTimer;
     private connected;
     constructor();
+    /** 检测 PrintCraft 服务主机（从 script src 或当前页面） */
+    private detectHost;
+    /** 获取 script 所在端口 */
+    private detectPort;
     /** 自动发现端口并连接 */
     private connect;
     /** 尝试连接指定端口 */
