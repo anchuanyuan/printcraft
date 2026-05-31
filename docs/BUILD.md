@@ -50,6 +50,47 @@ ls -lh target/x86_64-pc-windows-msvc/release/printcraft-server.exe
 ls -lh target/x86_64-pc-windows-msvc/release/printcraft.exe
 ```
 
+### Windows 原生编译 (Windows ARM64 / x64)
+
+需要 Visual Studio 2026 Build Tools + C++ 桌面开发工作负载。
+
+**推荐：用构建脚本（自动检测 MSVC/SDK 版本）：**
+
+```powershell
+# 在项目根目录执行
+.\scripts\build-windows.ps1                # ARM64 release
+.\scripts\build-windows.ps1 -Debug         # ARM64 debug
+.\scripts\build-windows.ps1 -Target x86    # x86_64 release
+```
+
+**手动编译（脚本不可用时）：**
+
+```powershell
+# 设置 MSVC 和 SDK 路径（根据实际安装版本调整）
+$MSVC = "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.52.36328"
+$SDK = "C:\Program Files (x86)\Windows Kits\10\lib\10.0.26100.0"
+
+# ARM64 编译
+$env:LIB = "$MSVC\lib\arm64;$SDK\ucrt\arm64;$SDK\um\arm64"
+$env:PATH = "$MSVC\bin\Hostarm64\arm64;$env:PATH"
+cargo build --release -p printcraft-server
+
+# x86_64 编译
+$env:LIB = "$MSVC\lib\x64;$SDK\ucrt\x64;$SDK\um\x64"
+$env:PATH = "$MSVC\bin\Hostx64\x64;$env:PATH"
+cargo build --release --target x86_64-pc-windows-msvc -p printcraft-server
+```
+
+**Cargo 镜像（%USERPROFILE%\\.cargo\\config.toml）：**
+
+```toml
+[source.crates-io]
+replace-with = 'rsproxy'
+
+[source.rsproxy]
+registry = "https://rsproxy.cn/crates.io-index"
+```
+
 ### 构建 SDK
 
 ```bash
