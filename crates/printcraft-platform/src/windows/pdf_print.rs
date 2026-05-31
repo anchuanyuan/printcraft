@@ -1,8 +1,9 @@
 //! Windows PDF 打印
 //!
 //! 打印策略（按优先级）:
-//! 1. SumatraPDF CLI — 静默打印，无弹窗，最可控
-//! 2. ShellExecuteW "printto" verb — 用系统注册的 PDF 处理器打印
+//! 1. Windows Spooler API — 直接发送 PDF 字节到打印队列（静默，无外部依赖）
+//! 2. SumatraPDF CLI — 静默打印，无弹窗
+//! 3. ShellExecuteW "print" verb — 弹出系统打印对话框
 //!
 //! 推荐: 打包 SumatraPDF.exe 以获得最佳体验。
 //! 下载: https://www.sumatrapdfreader.org/download-free-pdf-viewer
@@ -17,8 +18,19 @@ use printcraft_core::error::{PrintCraftError, Result};
 
 type HWND = *mut std::ffi::c_void;
 type HINSTANCE = *mut std::ffi::c_void;
+type HANDLE = *mut std::ffi::c_void;
 type PCWSTR = *const u16;
 type PWSTR = *mut u16;
+type DWORD = u32;
+type BOOL = i32;
+
+/// DOC_INFO_1W — 文档信息结构
+#[repr(C)]
+struct DocInfo1W {
+    p_doc_name: PWSTR,
+    p_output_file: PWSTR,
+    p_datatype: PWSTR,
+}
 
 extern "system" {
     fn ShellExecuteW(
@@ -32,6 +44,13 @@ extern "system" {
 
     fn FindWindowW(lp_class_name: PCWSTR, lp_window_name: PCWSTR) -> HWND;
     fn SendMessageW(hwnd: HWND, msg: u32, wparam: usize, lparam: isize) -> isize;
+
+    // ── Print Spooler API ──
+    fn OpenPrinterW(p_printer_name: PCWSTR, ph_printer: *mut HANDLE, p_default: *mut u8) -> BOOL;
+    fn StartDocPrinterW(h_printer: HANDLE, level: DWORD, p_doc_info: *const u8) -> DWORD;
+    fn WritePrinter(h_printer: HANDLE, p_buf: *const u8, cb_buf: DWORD, pc_written: *mut DWORD) -> BOOL;
+    fn EndDocPrinter(h_printer: HANDLE) -> BOOL;
+    fn ClosePrinter(h_printer: HANDLE) -> BOOL;
 }
 
 const SW_HIDE: i32 = 0;
@@ -43,8 +62,9 @@ const WM_CLOSE: u32 = 0x0010;
 /// 将 PDF 发送到指定打印机
 ///
 /// 策略:
-/// 1. 查找内嵌的 SumatraPDF.exe → 静默打印
-/// 2. 回退到 ShellExecuteW "printto" → 弹出选择对话框（仅首次）
+/// 1. Windows Spooler API 直接发送 PDF 字节（静默，无需外部程序）
+/// 2. SumatraPDF CLI（静默，需打包）
+/// 3. ShellExecuteW "print"（弹出对话框）
 ///
 /// 如果 printer_name 为空，自动使用系统默认打印机。
 pub fn print_pdf(
@@ -61,47 +81,116 @@ pub fn print_pdf(
     } else {
         printer_name.to_string()
     };
-    // 1. 写入临时文件
+
+    // 1. 优先尝试 Windows Spooler API（最可靠，静默打印）
+    tracing::info!("尝试 Spooler API 直接打印到 '{}'", actual_printer);
+    match print_with_spooler(&actual_printer, pdf_data, job_name) {
+        Ok(()) => return Ok(()),
+        Err(e) => tracing::warn!("Spooler API 失败: {}, 尝试其他方式", e),
+    }
+
+    // 2. 写入临时文件，尝试其他方式
     let tmp_path = create_temp_pdf_path(job_name)?;
     std::fs::write(&tmp_path, pdf_data).map_err(|e| {
         PrintCraftError::Platform(format!("写入临时 PDF 文件失败: {}", e))
     })?;
 
-    // 2. 尝试 SumatraPDF 静默打印
+    // 3. 尝试 SumatraPDF 静默打印
     if let Some(sumatra) = find_sumatra_pdf() {
         let result = print_with_sumatra(&sumatra, &tmp_path, &actual_printer, copies);
         let _ = std::fs::remove_file(&tmp_path);
         return result;
     }
 
-    // 3. 回退: ShellExecuteW "printto"
-    tracing::warn!(
-        "未找到 SumatraPDF.exe，使用 ShellExecuteW printto（可能弹出对话框）"
-    );
+    // 4. 回退: ShellExecuteW（可能弹出对话框）
+    tracing::warn!("未找到 SumatraPDF.exe，使用 ShellExecuteW（可能弹出对话框）");
     let result = print_with_shell_execute(&tmp_path, &actual_printer);
     let _ = std::fs::remove_file(&tmp_path);
     result
+}
+
+// ── Spooler API 打印 ────────────────────────────────────────
+
+/// 使用 Windows Print Spooler API 直接发送 PDF 字节
+///
+/// 通过 OpenPrinter → StartDocPrinter → WritePrinter → EndDocPrinter 流程，
+/// 将 PDF 原始字节发送到打印队列。无需外部 PDF 阅读器。
+fn print_with_spooler(printer_name: &str, pdf_data: &[u8], job_name: &str) -> Result<()> {
+    let wide_printer = to_wide(printer_name);
+    let wide_job_name = to_wide(job_name);
+    let wide_datatype = to_wide("RAW");
+
+    unsafe {
+        // 打开打印机
+        let mut h_printer: HANDLE = std::ptr::null_mut();
+        let ok = OpenPrinterW(wide_printer.as_ptr(), &mut h_printer, std::ptr::null_mut());
+        if ok == 0 || h_printer.is_null() {
+            return Err(PrintCraftError::Platform(format!(
+                "OpenPrinterW 失败: 无法打开打印机 '{}'",
+                printer_name
+            )));
+        }
+
+        // 准备文档信息
+        let doc_info = DocInfo1W {
+            p_doc_name: wide_job_name.as_ptr() as PWSTR,
+            p_output_file: std::ptr::null_mut(),
+            p_datatype: wide_datatype.as_ptr() as PWSTR,
+        };
+
+        // 开始文档
+        let doc_id = StartDocPrinterW(
+            h_printer,
+            1, // DOC_INFO_1
+            &doc_info as *const DocInfo1W as *const u8,
+        );
+        if doc_id == 0 {
+            ClosePrinter(h_printer);
+            return Err(PrintCraftError::Platform("StartDocPrinterW 失败".to_string()));
+        }
+
+        // 写入 PDF 数据
+        let mut written: DWORD = 0;
+        let ok = WritePrinter(
+            h_printer,
+            pdf_data.as_ptr(),
+            pdf_data.len() as DWORD,
+            &mut written,
+        );
+        if ok == 0 {
+            EndDocPrinter(h_printer);
+            ClosePrinter(h_printer);
+            return Err(PrintCraftError::Platform("WritePrinter 失败".to_string()));
+        }
+
+        // 结束文档
+        EndDocPrinter(h_printer);
+        ClosePrinter(h_printer);
+
+        tracing::info!(
+            "Spooler API: PDF ({} bytes) 已发送到 '{}' (job: {})",
+            written,
+            printer_name,
+            job_name
+        );
+        Ok(())
+    }
 }
 
 // ── SumatraPDF 打印 ─────────────────────────────────────────
 
 /// 在常见位置查找 SumatraPDF.exe
 fn find_sumatra_pdf() -> Option<PathBuf> {
-    // 搜索顺序: 同目录 → Program Files → PATH
     let candidates = [
-        // 与 printcraft.exe 同目录
         std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|d| d.join("SumatraPDF.exe"))),
-        // 安装目录下的 tools 子目录
         std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|d| d.join("tools").join("SumatraPDF.exe"))),
-        // Program Files
         std::env::var("ProgramFiles")
             .ok()
             .map(|p| PathBuf::from(p).join("SumatraPDF").join("SumatraPDF.exe")),
-        // Program Files (x86)
         std::env::var("ProgramFiles(x86)")
             .ok()
             .map(|p| PathBuf::from(p).join("SumatraPDF").join("SumatraPDF.exe")),
@@ -118,8 +207,6 @@ fn find_sumatra_pdf() -> Option<PathBuf> {
 }
 
 /// 使用 SumatraPDF CLI 静默打印
-///
-/// 命令行: SumatraPDF.exe -print-to "printer" -print-settings "Nx" file.pdf
 fn print_with_sumatra(
     sumatra_path: &PathBuf,
     pdf_path: &PathBuf,
@@ -158,45 +245,65 @@ fn print_with_sumatra(
 
 // ── ShellExecuteW 打印 ──────────────────────────────────────
 
-/// 使用 ShellExecuteW "printto" verb 打印
+/// 使用 ShellExecuteW 打印 PDF
 ///
-/// Windows 会使用系统注册的 PDF 处理器（如 Edge、Adobe Reader）执行打印。
-/// 首次使用可能弹出打印机选择对话框。
+/// 先尝试 "printto" verb（指定打印机），失败则用 "print"（弹出打印对话框）。
 fn print_with_shell_execute(pdf_path: &PathBuf, printer_name: &str) -> Result<()> {
     let wide_file = to_wide(&pdf_path.to_string_lossy());
-    let wide_operation = to_wide("printto");
-    let wide_printer = to_wide(printer_name);
+
+    // 优先用 "printto" 指定打印机
+    if !printer_name.is_empty() {
+        let wide_operation = to_wide("printto");
+        let wide_printer = to_wide(printer_name);
+
+        unsafe {
+            let result = ShellExecuteW(
+                std::ptr::null_mut(),
+                wide_operation.as_ptr(),
+                wide_file.as_ptr(),
+                wide_printer.as_ptr(),
+                std::ptr::null_mut(),
+                SW_SHOWNORMAL,
+            );
+
+            if result as usize > 32 {
+                tracing::info!("ShellExecuteW printto: PDF 已发送到 '{}'", printer_name);
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                return Ok(());
+            }
+
+            tracing::warn!(
+                "ShellExecuteW printto 失败 ({}), 尝试 print verb",
+                shell_error_description(result as usize)
+            );
+        }
+    }
+
+    // 回退: "print" verb（弹出系统打印对话框）
+    let wide_operation = to_wide("print");
 
     unsafe {
         let result = ShellExecuteW(
             std::ptr::null_mut(),
             wide_operation.as_ptr(),
             wide_file.as_ptr(),
-            wide_printer.as_ptr(),
+            std::ptr::null(),
             std::ptr::null_mut(),
-            SW_SHOWNORMAL, // printto 需要可见窗口
+            SW_SHOWNORMAL,
         );
 
-        // ShellExecuteW 返回值 > 32 表示成功
-        if result as usize > 32 {
-            tracing::info!(
-                "ShellExecuteW printto: PDF 已发送到 '{}'",
-                printer_name
-            );
-
-            // 等待一小段时间让打印任务提交
-            std::thread::sleep(std::time::Duration::from_millis(500));
-
-            // 尝试关闭可能弹出的 PDF 查看器窗口
+        let code = result as usize;
+        if code > 32 {
+            tracing::info!("ShellExecuteW print: 已打开打印对话框 (code={})", code);
+            std::thread::sleep(std::time::Duration::from_secs(2));
             close_pdf_viewer_window();
-
             Ok(())
         } else {
-            let error_code = result as usize;
+            tracing::error!("ShellExecuteW print 失败: 返回码 {} ({})", code, shell_error_description(code));
             Err(PrintCraftError::Platform(format!(
-                "ShellExecuteW printto 失败: 返回码 {} ({})",
-                error_code,
-                shell_error_description(error_code)
+                "ShellExecuteW print 失败: 返回码 {} ({})",
+                code,
+                shell_error_description(code)
             )))
         }
     }
@@ -205,8 +312,7 @@ fn print_with_shell_execute(pdf_path: &PathBuf, printer_name: &str) -> Result<()
 /// 尝试关闭 PDF 阅读器弹出的窗口
 fn close_pdf_viewer_window() {
     unsafe {
-        // 尝试查找常见的 PDF 查看器窗口
-        let viewers = ["AcrobatSDIWindow", "ATL:00007FF..."]; // Adobe Reader class names
+        let viewers = ["AcrobatSDIWindow", "ATL:00007FF..."];
         for class_name in &viewers {
             let wide_class = to_wide(class_name);
             let hwnd = FindWindowW(wide_class.as_ptr(), std::ptr::null());

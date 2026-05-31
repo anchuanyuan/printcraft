@@ -214,8 +214,8 @@
       LODOP.SET_PRINT_STYLE('Alignment', 2);
       LODOP.ADD_PRINT_TEXT(220, 50, 400, 30, '蓝色右对齐');
 
-      await LODOP.PRINT();
-      log('文字打印已发送', 'success');
+      const ok = await LODOP.PRINT();
+      log(ok ? '文字打印已发送' : '文字打印失败', ok ? 'success' : 'error');
     }
 
     async function testShape() {
@@ -225,8 +225,8 @@
       LODOP.ADD_PRINT_RECT(80, 80, 200, 100, 1, 1);
       LODOP.ADD_PRINT_LINE(50, 50, 350, 250, 0, 1);
       LODOP.ADD_PRINT_ELLIPSE(300, 50, 150, 150, 0, 2);
-      await LODOP.PRINT();
-      log('形状打印已发送', 'success');
+      const ok = await LODOP.PRINT();
+      log(ok ? '形状打印已发送' : '形状打印失败', ok ? 'success' : 'error');
     }
 
     async function testBarcode() {
@@ -237,8 +237,8 @@
       LODOP.ADD_PRINT_BARCODE(80, 50, 200, 200, 'QRCode', 'https://github.com/anchuanyuan/printcraft');
       LODOP.ADD_PRINT_TEXT(80, 300, 200, 20, 'Code128:');
       LODOP.ADD_PRINT_BARCODE(110, 300, 300, 80, 'Code128', 'PRINTCRAFT2024');
-      await LODOP.PRINT();
-      log('条码打印已发送', 'success');
+      const ok = await LODOP.PRINT();
+      log(ok ? '条码打印已发送' : '条码打印失败', ok ? 'success' : 'error');
     }
 
     async function testTable() {
@@ -258,8 +258,8 @@
           </tr>
         </table>
       `);
-      await LODOP.PRINT();
-      log('表格打印已发送', 'success');
+      const ok = await LODOP.PRINT();
+      log(ok ? '表格打印已发送' : '表格打印失败', ok ? 'success' : 'error');
     }
 
     async function testPreview() {
