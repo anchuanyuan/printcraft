@@ -38,9 +38,11 @@ pub async fn start_server(port: u16, service: Arc<Mutex<PrintService>>, previews
         .route("/api/preview/{id}/pdf", get(rest::preview_pdf))
         // 预览 UI 页面
         .route("/preview/{id}", get(preview_page))
+        // SDK JS 文件
+        .route("/sdk/printcraft.js", get(static_files::serve_sdk_js))
         // WebSocket
         .route("/ws", get(ws::websocket_handler))
-        // 静态文件
+        // 静态文件兜底
         .fallback(static_files::serve)
         .layer(CorsLayer::permissive())
         .with_state(state);

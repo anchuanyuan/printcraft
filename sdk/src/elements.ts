@@ -13,7 +13,7 @@ export type BarcodeType = string;
 
 export interface PrintElement {
   index: number;
-  type: 'text' | 'rect' | 'line' | 'image' | 'barcode' | 'htm' | 'table' | 'url';
+  type: 'text' | 'rect' | 'line' | 'ellipse' | 'image' | 'barcode' | 'htm' | 'table' | 'url' | 'shape';
   position: ElementPosition;
   style: Record<string, any>;
   [key: string]: any;
