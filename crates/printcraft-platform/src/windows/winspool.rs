@@ -194,8 +194,8 @@ pub fn get_paper_sizes(printer_name: &str) -> Result<Vec<PaperSize>> {
         // 每个纸张名 64 个 wchar (128 bytes)
         let name_buf_size = (count as usize) * 64;
         let name_buf: Vec<u16> = vec![0u16; name_buf_size];
-        let _size_buf_size = (count as usize) * 2; // POINTS 结构: 2 × i16 = 4 bytes per entry
-        let size_buf: Vec<u8> = vec![0u8; (count as usize) * 4];
+        // POINTL 结构: 2 × LONG (2 × 4 bytes = 8 bytes per entry)
+        let size_buf: Vec<u8> = vec![0u8; (count as usize) * 8];
 
         // 获取纸张名称
         let names_ret = DeviceCapabilitiesW(
@@ -220,7 +220,7 @@ pub fn get_paper_sizes(printer_name: &str) -> Result<Vec<PaperSize>> {
         }
 
         let mut paper_sizes = Vec::with_capacity(count as usize);
-        let size_data = size_buf.as_ptr() as *const i16;
+        let size_data = size_buf.as_ptr() as *const i32;
 
         for i in 0..count as usize {
             // 提取纸张名称 (每 64 个 wchar 一个)
@@ -228,7 +228,7 @@ pub fn get_paper_sizes(printer_name: &str) -> Result<Vec<PaperSize>> {
             let name_wide = &name_buf[name_start..name_start + 64];
             let name = wide_slice_to_string(name_wide);
 
-            // 提取尺寸 (POINTS 结构: cx, cy, 单位 0.1mm)
+            // 提取尺寸 (POINTL 结构: cx, cy, 单位 0.1mm, 每个 LONG = 4 bytes)
             let cx = *size_data.add(i * 2);
             let cy = *size_data.add(i * 2 + 1);
 

@@ -48,6 +48,7 @@
       <h2>打印机</h2>
       <div class="btn-group" style="margin-bottom: 12px;">
         <button class="btn btn-primary" onclick="refreshPrinters()">刷新打印机列表</button>
+        <button class="btn btn-warning" onclick="queryPaperSizes()">查询纸张列表</button>
       </div>
       <div id="printerList" class="printer-list">
         <div style="color: #999; padding: 8px;">点击"刷新打印机列表"</div>
@@ -55,6 +56,7 @@
       <div style="margin-top: 8px; font-size: 13px; color: #666;">
         选中: <span id="selectedPrinter">默认打印机</span>
       </div>
+      <div id="paperList" style="margin-top: 8px; font-size: 13px; color: #666;"></div>
     </div>
 
     <div class="card">
@@ -182,6 +184,32 @@
           log(`选中打印机: ${name}`, 'info');
         };
         list.appendChild(item);
+      }
+    }
+
+    async function queryPaperSizes() {
+      if (!LODOP) { log('未连接服务', 'error'); return; }
+      const printerName = selectedPrinter || undefined;
+      log(`查询纸张列表: ${printerName || '默认打印机'}...`, 'info');
+      try {
+        const papers = await LODOP.GET_PAPER_SIZES(printerName);
+        if (papers.length === 0) {
+          log('未获取到纸张列表', 'warn');
+          document.getElementById('paperList').textContent = '无纸张数据';
+          return;
+        }
+        log(`获取到 ${papers.length} 种纸张`, 'success');
+        let html = `<b>纸张列表 (${papers.length} 种):</b><br>`;
+        html += '<div style="max-height:200px;overflow-y:auto;margin-top:4px;">';
+        html += '<table style="width:100%;font-size:12px;border-collapse:collapse;">';
+        html += '<tr style="background:#f0f0f0;"><th style="text-align:left;padding:4px;">名称</th><th style="text-align:right;padding:4px;">宽(mm)</th><th style="text-align:right;padding:4px;">高(mm)</th></tr>';
+        papers.forEach(p => {
+          html += `<tr><td style="padding:4px;border-bottom:1px solid #eee;">${p.name}</td><td style="text-align:right;padding:4px;border-bottom:1px solid #eee;">${p.width_mm}</td><td style="text-align:right;padding:4px;border-bottom:1px solid #eee;">${p.height_mm}</td></tr>`;
+        });
+        html += '</table></div>';
+        document.getElementById('paperList').innerHTML = html;
+      } catch (e) {
+        log('查询纸张列表失败: ' + e.message, 'error');
       }
     }
 

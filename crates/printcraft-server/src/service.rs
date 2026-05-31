@@ -84,6 +84,7 @@ impl PrintService {
             "PREVIEW" => self.cmd_preview(args).await,
             "GET_PRINTER_COUNT" => self.cmd_get_printer_count().await,
             "GET_PRINTER_NAME" => self.cmd_get_printer_name(args).await,
+            "GET_PAPER_SIZES" => self.cmd_get_paper_sizes(args).await,
             "GET_PRINT_IN_VALUE" => self.cmd_get_print_in_value(args).await,
             _ => Err(PrintCraftError::Unsupported(format!("未知命令: {}", cmd))),
         }
@@ -625,6 +626,30 @@ impl PrintService {
         Ok(serde_json::json!({
             "ok": true,
             "count": printers.len(),
+        }))
+    }
+
+    /// GET_PAPER_SIZES - 获取打印机纸张列表
+    async fn cmd_get_paper_sizes(&self, args: &serde_json::Value) -> Result<serde_json::Value> {
+        let printer_name = args
+            .get("printerName")
+            .or_else(|| args.get("name"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        // 空则查询默认打印机
+        let name = if printer_name.is_empty() {
+            let default = self.platform.get_default_printer().await?;
+            default.name
+        } else {
+            printer_name.to_string()
+        };
+
+        let paper_sizes = self.platform.get_paper_sizes(&name).await?;
+        Ok(serde_json::json!({
+            "ok": true,
+            "printer": name,
+            "paperSizes": paper_sizes,
         }))
     }
 

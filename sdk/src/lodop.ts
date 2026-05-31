@@ -305,6 +305,15 @@ export class Lodop {
     return result?.data?.name ?? '';
   }
 
+  /**
+   * 获取打印机支持的纸张列表
+   * PrintCraft 扩展 API
+   */
+  async GET_PAPER_SIZES(printerName?: string): Promise<Array<{name: string, width_mm: number, height_mm: number}>> {
+    const result = await this.connection.send('GET_PAPER_SIZES', { printerName: printerName || '' });
+    return result?.data?.paperSizes ?? [];
+  }
+
   /** 构建打印任务对象 */
   private buildJob() {
     return {
