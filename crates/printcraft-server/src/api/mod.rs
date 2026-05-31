@@ -45,7 +45,7 @@ pub async fn start_server(port: u16, service: Arc<Mutex<PrintService>>, previews
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let addr = format!("127.0.0.1:{}", port);
+    let addr = format!("0.0.0.0:{}", port);
     tracing::info!("PrintCraft 服务启动: http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
