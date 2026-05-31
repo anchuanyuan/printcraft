@@ -121,6 +121,15 @@ export declare class Lodop {
      * 对应 Lodop: GET_PRINTER_NAME(intPrinterIndex)
      */
     GET_PRINTER_NAME(index: number): Promise<string>;
+    /**
+     * 获取打印机支持的纸张列表
+     * PrintCraft 扩展 API
+     */
+    GET_PAPER_SIZES(printerName?: string): Promise<Array<{
+        name: string;
+        width_mm: number;
+        height_mm: number;
+    }>>;
     /** 构建打印任务对象 */
     private buildJob;
 }

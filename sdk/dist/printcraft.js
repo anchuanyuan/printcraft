@@ -124,7 +124,7 @@ class u {
    * 对应 Lodop: PRINT_INIT(strTaskName)
    */
   PRINT_INIT(e) {
-    return this.taskName = e || "", this.elements = [], this.currentStyle = {}, !0;
+    return this.taskName = e || "", this.elements = [], this.currentStyle = {}, this.printer = "", this.copies = 1, this.pageSize = { orientation: 1, width: 0, height: 0, name: "A4" }, !0;
   }
   /**
    * 添加纯文本打印项
@@ -315,7 +315,7 @@ class u {
    */
   async PRINT() {
     const e = this.buildJob(), t = await this.connection.send("PRINT", e);
-    return (t == null ? void 0 : t.ok) ?? !1;
+    return t != null && t.ok ? !0 : (console.warn("PrintCraft: PRINT 失败", t == null ? void 0 : t.error), !1);
   }
   /**
    * 打印预览
@@ -349,6 +349,15 @@ class u {
     var n;
     const t = await this.connection.send("GET_PRINTER_NAME", { index: e });
     return ((n = t == null ? void 0 : t.data) == null ? void 0 : n.name) ?? "";
+  }
+  /**
+   * 获取打印机支持的纸张列表
+   * PrintCraft 扩展 API
+   */
+  async GET_PAPER_SIZES(e) {
+    var n;
+    const t = await this.connection.send("GET_PAPER_SIZES", { printerName: e || "" });
+    return ((n = t == null ? void 0 : t.data) == null ? void 0 : n.paperSizes) ?? [];
   }
   /** 构建打印任务对象 */
   buildJob() {
