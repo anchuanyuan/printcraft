@@ -191,13 +191,10 @@ pub fn get_paper_sizes(printer_name: &str) -> Result<Vec<PaperSize>> {
             return Ok(vec![]);
         }
 
-        // 每个纸张名 64 个 wchar (128 bytes)
-        let name_buf_size = (count as usize) * 64;
-        let name_buf: Vec<u16> = vec![0u16; name_buf_size];
-        // POINTL 结构: 2 × LONG (2 × 4 bytes = 8 bytes per entry)
-        let size_buf: Vec<u8> = vec![0u8; (count as usize) * 8];
+        let count = count as usize;
 
         // 获取纸张名称
+        let name_buf: Vec<u16> = vec![0u16; count * 64];
         let names_ret = DeviceCapabilitiesW(
             wide_name.as_ptr(),
             std::ptr::null(),
@@ -206,7 +203,13 @@ pub fn get_paper_sizes(printer_name: &str) -> Result<Vec<PaperSize>> {
             std::ptr::null(),
         );
 
-        // 获取纸张物理尺寸 (0.1mm 单位)
+        if names_ret == u32::MAX {
+            return Ok(vec![]);
+        }
+
+        // 尝试获取纸张物理尺寸 (0.1mm 单位)
+        // 某些打印机不支持 DC_PAPERSIZE，只返回纸张名
+        let size_buf: Vec<u8> = vec![0u8; count * 8];
         let sizes_ret = DeviceCapabilitiesW(
             wide_name.as_ptr(),
             std::ptr::null(),
@@ -215,36 +218,48 @@ pub fn get_paper_sizes(printer_name: &str) -> Result<Vec<PaperSize>> {
             std::ptr::null(),
         );
 
-        if names_ret == u32::MAX || sizes_ret == u32::MAX {
-            return Ok(vec![]);
-        }
-
-        let mut paper_sizes = Vec::with_capacity(count as usize);
+        let has_sizes = sizes_ret != u32::MAX && sizes_ret as usize >= count;
         let size_data = size_buf.as_ptr() as *const i32;
 
-        for i in 0..count as usize {
-            // 提取纸张名称 (每 64 个 wchar 一个)
+        let mut paper_sizes = Vec::with_capacity(count);
+
+        for i in 0..count {
             let name_start = i * 64;
             let name_wide = &name_buf[name_start..name_start + 64];
             let name = wide_slice_to_string(name_wide);
 
-            // 提取尺寸 (POINTL 结构: cx, cy, 单位 0.1mm, 每个 LONG = 4 bytes)
-            let cx = *size_data.add(i * 2);
-            let cy = *size_data.add(i * 2 + 1);
-
-            if cx > 0 && cy > 0 {
+            if has_sizes {
+                let cx = *size_data.add(i * 2);
+                let cy = *size_data.add(i * 2 + 1);
+                if cx > 0 && cy > 0 {
+                    paper_sizes.push(PaperSize {
+                        name: name.trim().to_string(),
+                        width_mm: cx as f64 / 10.0,
+                        height_mm: cy as f64 / 10.0,
+                    });
+                } else {
+                    let (w, h) = parse_size_from_name(&name);
+                    paper_sizes.push(PaperSize {
+                        name: name.trim().to_string(),
+                        width_mm: w,
+                        height_mm: h,
+                    });
+                }
+            } else {
+                let (w, h) = parse_size_from_name(&name);
                 paper_sizes.push(PaperSize {
                     name: name.trim().to_string(),
-                    width_mm: cx as f64 / 10.0,
-                    height_mm: cy as f64 / 10.0,
+                    width_mm: w,
+                    height_mm: h,
                 });
             }
         }
 
         tracing::info!(
-            "Windows: {} 支持 {} 种纸张",
+            "Windows: {} 支持 {} 种纸张 (尺寸数据: {})",
             printer_name,
-            paper_sizes.len()
+            paper_sizes.len(),
+            if has_sizes { "有" } else { "无" }
         );
         Ok(paper_sizes)
     }
@@ -343,10 +358,93 @@ fn string_to_wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
+/// 从纸张名称中解析尺寸（如 "75mm x 130mm" → (75.0, 130.0)）
+fn parse_size_from_name(name: &str) -> (f64, f64) {
+    // 匹配 "NNmm x NNmm" 模式
+    let lower = name.to_lowercase();
+    if let Some(idx) = lower.find("mm") {
+        let w_str = lower[..idx].trim();
+        // 找到 "x" 分隔符
+        let after_w = &lower[idx + 2..];
+        if let Some(x_pos) = after_w.find('x') {
+            let h_part = after_w[x_pos + 1..].trim();
+            if let Some(h_idx) = h_part.find("mm") {
+                let h_str = h_part[..h_idx].trim();
+                if let (Ok(w), Ok(h)) = (w_str.parse::<f64>(), h_str.parse::<f64>()) {
+                    return (w, h);
+                }
+            }
+        }
+    }
+    (0.0, 0.0)
+}
+
 /// 获取 Win32 最后错误的描述
 fn last_error_message() -> String {
     unsafe {
         let err = windows::Win32::Foundation::GetLastError();
         format!("Win32 error code: {:08X}", err.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_list_printers() {
+        let printers = list_printers().unwrap();
+        println!("发现 {} 台打印机:", printers.len());
+        for p in &printers {
+            println!("  {} {}", p.name, if p.is_default { "(默认)" } else { "" });
+        }
+        assert!(!printers.is_empty());
+    }
+
+    #[test]
+    fn test_get_paper_sizes() {
+        let default = get_default_printer().unwrap();
+        println!("默认打印机: {}", default.name);
+
+        // 测试所有打印机的纸张查询
+        let printers = list_printers().unwrap();
+        for p in &printers {
+            let papers = get_paper_sizes(&p.name).unwrap();
+            println!("{}: {} 种纸张", p.name, papers.len());
+            for (i, pp) in papers.iter().enumerate().take(5) {
+                println!("  {}. {} ({}x{}mm)", i + 1, pp.name, pp.width_mm, pp.height_mm);
+            }
+            if papers.len() > 5 {
+                println!("  ... 共 {} 种", papers.len());
+            }
+        }
+    }
+
+    #[test]
+    fn test_device_capabilities_debug() {
+        let printers = list_printers().unwrap();
+        for p in &printers {
+            let wide_name = string_to_wide(&p.name);
+            unsafe {
+                let name_count = DeviceCapabilitiesW(
+                    wide_name.as_ptr(),
+                    std::ptr::null(),
+                    DC_PAPERNAMES,
+                    std::ptr::null_mut(),
+                    std::ptr::null(),
+                );
+                let size_count = DeviceCapabilitiesW(
+                    wide_name.as_ptr(),
+                    std::ptr::null(),
+                    DC_PAPERSIZE,
+                    std::ptr::null_mut(),
+                    std::ptr::null(),
+                );
+                println!(
+                    "{}: DC_PAPERNAMES={}, DC_PAPERSIZE={}",
+                    p.name, name_count, size_count
+                );
+            }
+        }
     }
 }

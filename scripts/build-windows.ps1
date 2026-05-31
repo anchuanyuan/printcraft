@@ -8,7 +8,8 @@
 param(
     [switch]$Debug,
     [string]$Target = "arm64",
-    [string]$Package = "printcraft-server"
+    [string]$Package = "printcraft-server",
+    [string]$Test = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -75,6 +76,15 @@ Write-Host ""
 
 $extraArgs = @()
 if (-not $Debug) { $extraArgs += "--release" }
+
+# 运行测试模式
+if ($Test -ne "") {
+    Write-Host "=== 运行测试 ===" -ForegroundColor Cyan
+    Write-Host "Crate: $Test"
+    Write-Host ""
+    cargo test -p $Test --target $rustTarget -- --nocapture
+    exit $LASTEXITCODE
+}
 
 cargo build --target $rustTarget -p $Package @extraArgs
 
