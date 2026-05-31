@@ -49,6 +49,22 @@ if ($Target -eq "arm64") {
 
 $profile = if ($Debug) { "dev" } else { "release" }
 
+# 先构建 SDK（JS 嵌入到 Rust 二进制中）
+$sdkDir = Join-Path $PSScriptRoot "..\sdk"
+if (Test-Path "$sdkDir\package.json") {
+    Write-Host "=== 构建 SDK ===" -ForegroundColor Cyan
+    Push-Location $sdkDir
+    npm install --silent 2>&1 | Out-Null
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "SDK 构建失败" -ForegroundColor Red
+        Pop-Location
+        exit 1
+    }
+    Pop-Location
+    Write-Host ""
+}
+
 Write-Host "=== PrintCraft Windows 编译 ===" -ForegroundColor Cyan
 Write-Host "MSVC:     $MSVC"
 Write-Host "SDK:      $SDK"
