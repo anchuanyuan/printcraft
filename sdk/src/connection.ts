@@ -26,16 +26,31 @@ export class Connection {
     this.connect();
   }
 
+  /** 检测 PrintCraft 服务主机（从 script src 或当前页面） */
+  private detectHost(): string {
+    if (typeof document !== 'undefined') {
+      const scripts = document.querySelectorAll('script[src*="printcraft.js"]');
+      if (scripts.length > 0) {
+        try {
+          const url = new URL((scripts[0] as HTMLScriptElement).src);
+          return url.hostname;
+        } catch {}
+      }
+    }
+    return '127.0.0.1';
+  }
+
   /** 自动发现端口并连接 */
   private async connect(): Promise<void> {
+    const host = this.detectHost();
     for (let port = 18000; port <= 18005; port++) {
       try {
-        await this.tryConnect(port);
+        await this.tryConnect(host, port);
         this.port = port;
         this.connected = true;
         this.reconnectDelay = 1000;
         this.startHeartbeat();
-        console.log(`PrintCraft: 已连接 localhost:${port}`);
+        console.log(`PrintCraft: 已连接 ${host}:${port}`);
         return;
       } catch {
         continue;
@@ -46,9 +61,9 @@ export class Connection {
   }
 
   /** 尝试连接指定端口 */
-  private tryConnect(port: number): Promise<void> {
+  private tryConnect(host: string, port: number): Promise<void> {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+      const ws = new WebSocket(`ws://${host}:${port}/ws`);
       ws.onopen = () => {
         this.ws = ws;
         this.setupListeners(ws);

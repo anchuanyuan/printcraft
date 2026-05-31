@@ -10,6 +10,7 @@ const PRINTCRAFT_JS: &str = include_str!("../../../../sdk/dist/printcraft.js");
 
 /// SDK JS 文件服务
 pub async fn serve_sdk_js() -> impl IntoResponse {
+    tracing::info!("SDK JS 文件被请求，大小: {} bytes", PRINTCRAFT_JS.len());
     (
         StatusCode::OK,
         [("content-type", "application/javascript; charset=utf-8")],
