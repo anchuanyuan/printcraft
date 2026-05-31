@@ -34,10 +34,10 @@ pub async fn start_server(port: u16, service: Arc<Mutex<PrintService>>, previews
         .route("/api/printers", get(rest::list_printers))
         .route("/api/status", get(rest::get_status))
         // 预览 API
-        .route("/api/preview/{id}/html", get(rest::preview_html))
-        .route("/api/preview/{id}/pdf", get(rest::preview_pdf))
+        .route("/api/preview/:id/html", get(rest::preview_html))
+        .route("/api/preview/:id/pdf", get(rest::preview_pdf))
         // 预览 UI 页面
-        .route("/preview/{id}", get(preview_page))
+        .route("/preview/:id", get(preview_page))
         // SDK JS 文件
         .route("/sdk/printcraft.js", get(static_files::serve_sdk_js))
         // WebSocket
