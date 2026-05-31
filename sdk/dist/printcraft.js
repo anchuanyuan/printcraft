@@ -1,4 +1,4 @@
-class a {
+class p {
   constructor() {
     this.ws = null, this.port = 0, this.pending = /* @__PURE__ */ new Map(), this.reconnectTimer = null, this.reconnectDelay = 1e3, this.heartbeatTimer = null, this.connected = !1, this.connect();
   }
@@ -48,11 +48,11 @@ class a {
         s(new Error("PrintCraft 服务未连接"));
         return;
       }
-      const i = crypto.randomUUID();
-      this.pending.set(i, { resolve: n, reject: s });
-      const r = JSON.stringify({ id: i, cmd: t, args: e });
-      this.ws.send(r), setTimeout(() => {
-        this.pending.has(i) && (this.pending.delete(i), s(new Error("请求超时")));
+      const r = crypto.randomUUID();
+      this.pending.set(r, { resolve: n, reject: s });
+      const i = JSON.stringify({ id: r, cmd: t, args: e });
+      this.ws.send(i), setTimeout(() => {
+        this.pending.has(r) && (this.pending.delete(r), s(new Error("请求超时")));
       }, 3e4);
     });
   }
@@ -77,9 +77,9 @@ class a {
     this.heartbeatTimer && ((typeof window < "u" ? window : globalThis).clearInterval(this.heartbeatTimer), this.heartbeatTimer = null);
   }
 }
-class l {
+class d {
   constructor() {
-    this.elements = [], this.currentStyle = {}, this.taskName = "", this.printer = "", this.copies = 1, this.pageSize = { orientation: 1, width: 0, height: 0, name: "A4" }, this.connection = new a();
+    this.elements = [], this.currentStyle = {}, this.taskName = "", this.printer = "", this.copies = 1, this.pageSize = { orientation: 1, width: 0, height: 0, name: "A4" }, this.connection = new p();
   }
   /**
    * 初始化打印任务
@@ -92,88 +92,148 @@ class l {
    * 添加纯文本打印项
    * 对应 Lodop: ADD_PRINT_TEXT(top, left, width, height, strContent)
    */
-  ADD_PRINT_TEXT(t, e, n, s, i) {
-    const r = this.elements.length + 1;
+  ADD_PRINT_TEXT(t, e, n, s, r) {
+    const i = this.elements.length + 1;
     return this.elements.push({
-      index: r,
+      index: i,
       type: "text",
       position: { top: t, left: e, width: n, height: s },
       style: { ...this.currentStyle },
-      content: i
-    }), r;
+      content: r
+    }), i;
   }
   /**
    * 添加矩形
    * 对应 Lodop: ADD_PRINT_RECT(top, left, width, height, intLineStyle, intLineWidth)
    */
-  ADD_PRINT_RECT(t, e, n, s, i = 0, r = 1) {
+  ADD_PRINT_RECT(t, e, n, s, r = 0, i = 1) {
     const o = this.elements.length + 1;
     return this.elements.push({
       index: o,
       type: "rect",
       position: { top: t, left: e, width: n, height: s },
       style: { ...this.currentStyle },
-      lineStyle: i,
-      lineWidth: r
+      lineStyle: r,
+      lineWidth: i
     }), o;
   }
   /**
    * 添加直线
    * 对应 Lodop: ADD_PRINT_LINE(top1, left1, top2, left2, intLineStyle, intLineWidth)
    */
-  ADD_PRINT_LINE(t, e, n, s, i = 0, r = 1) {
+  ADD_PRINT_LINE(t, e, n, s, r = 0, i = 1) {
     const o = this.elements.length + 1;
     return this.elements.push({
       index: o,
       type: "line",
       position: { top: t, left: e, width: s - e, height: n - t },
       style: { ...this.currentStyle },
-      lineStyle: i,
-      lineWidth: r
+      lineStyle: r,
+      lineWidth: i
     }), o;
   }
   /**
    * 添加图片
    * 对应 Lodop: ADD_PRINT_IMAGE(top, left, width, height, strHtmlContent)
    */
-  ADD_PRINT_IMAGE(t, e, n, s, i) {
-    const r = this.elements.length + 1;
+  ADD_PRINT_IMAGE(t, e, n, s, r) {
+    const i = this.elements.length + 1;
     return this.elements.push({
-      index: r,
+      index: i,
       type: "image",
       position: { top: t, left: e, width: n, height: s },
       style: { ...this.currentStyle },
-      src: i
-    }), r;
+      src: r
+    }), i;
   }
   /**
    * 添加条码
    * 对应 Lodop: ADD_PRINT_BARCODE(top, left, width, height, strBarCodeType, strBarCodeValue)
    */
-  ADD_PRINT_BARCODE(t, e, n, s, i, r) {
+  ADD_PRINT_BARCODE(t, e, n, s, r, i) {
     const o = this.elements.length + 1;
     return this.elements.push({
       index: o,
       type: "barcode",
       position: { top: t, left: e, width: n, height: s },
       style: { ...this.currentStyle },
-      barType: i,
-      code: r
+      barType: r,
+      code: i
     }), o;
   }
   /**
    * 添加超文本
    * 对应 Lodop: ADD_PRINT_HTM(top, left, width, height, strHtmlContent)
    */
-  ADD_PRINT_HTM(t, e, n, s, i) {
-    const r = this.elements.length + 1;
+  ADD_PRINT_HTM(t, e, n, s, r) {
+    const i = this.elements.length + 1;
     return this.elements.push({
-      index: r,
+      index: i,
       type: "htm",
       position: { top: t, left: e, width: n, height: s },
       style: { ...this.currentStyle },
-      html: i
-    }), r;
+      html: r
+    }), i;
+  }
+  /**
+   * 添加表格
+   * 对应 Lodop: ADD_PRINT_TABLE(top, left, width, height, strHtmlContent)
+   */
+  ADD_PRINT_TABLE(t, e, n, s, r) {
+    const i = this.elements.length + 1;
+    return this.elements.push({
+      index: i,
+      type: "table",
+      position: { top: t, left: e, width: n, height: s },
+      style: { ...this.currentStyle },
+      html: r
+    }), i;
+  }
+  /**
+   * 添加网页地址
+   * 对应 Lodop: ADD_PRINT_URL(top, left, width, height, strURL)
+   */
+  ADD_PRINT_URL(t, e, n, s, r) {
+    const i = this.elements.length + 1;
+    return this.elements.push({
+      index: i,
+      type: "url",
+      position: { top: t, left: e, width: n, height: s },
+      style: { ...this.currentStyle },
+      url: r
+    }), i;
+  }
+  /**
+   * 添加椭圆
+   * 对应 Lodop: ADD_PRINT_ELLIPSE(top, left, width, height, intLineStyle, intLineWidth)
+   */
+  ADD_PRINT_ELLIPSE(t, e, n, s, r = 0, i = 1) {
+    const o = this.elements.length + 1;
+    return this.elements.push({
+      index: o,
+      type: "ellipse",
+      position: { top: t, left: e, width: n, height: s },
+      style: { ...this.currentStyle },
+      lineStyle: r,
+      lineWidth: i
+    }), o;
+  }
+  /**
+   * 添加形状
+   * 对应 Lodop: ADD_PRINT_SHAPE(intShapeType, top, left, width, height, intLineStyle, intLineWidth, strColor)
+   */
+  ADD_PRINT_SHAPE(t, e, n, s, r, i = 0, o = 1, a = "#000000") {
+    const c = this.elements.length + 1;
+    return this.elements.push({
+      index: c,
+      type: "shape",
+      position: { top: e, left: n, width: s, height: r },
+      style: { ...this.currentStyle },
+      shapeType: t,
+      lineStyle: i,
+      lineWidth: o,
+      color: a
+    }), c;
   }
   /**
    * 设置下一个添加元素的样式
@@ -187,7 +247,7 @@ class l {
    * 对应 Lodop: SET_PRINT_STYLEA(varItemNameID, strStyleName, varStyleValue)
    */
   SET_PRINT_STYLEA(t, e, n) {
-    const s = this.elements.find((i) => i.index === t);
+    const s = this.elements.find((r) => r.index === t);
     s && (s.style[e] = n);
   }
   /**
@@ -229,8 +289,8 @@ class l {
     var n;
     const t = this.buildJob(), e = await this.connection.send("PREVIEW", t);
     if (e != null && e.ok && ((n = e == null ? void 0 : e.data) != null && n.previewId)) {
-      const s = e.data.previewId, r = `http://127.0.0.1:${this.connection.getPort()}/preview/${s}`;
-      return window.open(r, "_blank", "width=900,height=700,scrollbars=yes"), 1;
+      const s = e.data.previewId, i = `http://127.0.0.1:${this.connection.getPort()}/preview/${s}`;
+      return window.open(i, "_blank", "width=900,height=700,scrollbars=yes"), 1;
     }
     return console.warn("PrintCraft: PREVIEW 失败", e == null ? void 0 : e.error), 0;
   }
@@ -263,12 +323,12 @@ class l {
     };
   }
 }
-const c = new l();
-window.LODOP = c;
-window.CLODOP = c;
-window.getLodop = () => c;
+const h = new d();
+window.LODOP = h;
+window.CLODOP = h;
+window.getLodop = () => h;
 export {
-  l as Lodop,
-  c as default
+  d as Lodop,
+  h as default
 };
 //# sourceMappingURL=printcraft.js.map

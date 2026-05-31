@@ -24,8 +24,12 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("PrintCraft 启动中...");
 
-    // 发现可用端口
-    let port = discovery::find_available_port(18000).await?;
+    // 发现可用端口（支持环境变量 PRINTCRAFT_PORT 指定）
+    let port = if let Ok(p) = std::env::var("PRINTCRAFT_PORT") {
+        p.parse().unwrap_or(18000)
+    } else {
+        discovery::find_available_port(18000).await?
+    };
     tracing::info!("监听端口: {}", port);
 
     // 创建平台打印实现
