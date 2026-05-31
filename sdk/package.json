@@ -1,0 +1,20 @@
+{
+  "name": "printcraft-sdk",
+  "version": "0.1.0",
+  "description": "PrintCraft 浏览器端 JS SDK - Lodop 兼容 API",
+  "type": "module",
+  "main": "dist/printcraft.umd.js",
+  "module": "dist/printcraft.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && tsc --emitDeclarationOnly",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  }
+}

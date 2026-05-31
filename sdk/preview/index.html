@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrintCraft - 打印预览</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f0f0; display: flex; flex-direction: column; height: 100vh; }
+
+  /* 工具栏 */
+  .toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; background: #fff; border-bottom: 1px solid #ddd;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 10;
+  }
+  .toolbar h1 { font-size: 14px; color: #333; margin-right: auto; }
+  .toolbar button {
+    padding: 6px 16px; border: 1px solid #ccc; border-radius: 4px;
+    background: #fff; cursor: pointer; font-size: 13px; color: #333;
+    transition: all 0.15s;
+  }
+  .toolbar button:hover { background: #f5f5f5; }
+  .toolbar .btn-print {
+    background: #1677ff; color: #fff; border-color: #1677ff;
+  }
+  .toolbar .btn-print:hover { background: #0958d9; }
+  .toolbar .btn-close { color: #999; border-color: #ddd; }
+  .toolbar .btn-close:hover { color: #333; }
+  .toolbar .separator { width: 1px; height: 20px; background: #ddd; }
+
+  /* 视图切换 */
+  .view-toggle { display: flex; gap: 0; }
+  .view-toggle button { border-radius: 0; border-right: none; }
+  .view-toggle button:first-child { border-radius: 4px 0 0 4px; }
+  .view-toggle button:last-child { border-radius: 0 4px 4px 0; border-right: 1px solid #ccc; }
+  .view-toggle button.active { background: #e6f4ff; border-color: #1677ff; color: #1677ff; }
+
+  /* 缩放 */
+  .zoom-controls { display: flex; align-items: center; gap: 4px; }
+  .zoom-controls button { width: 28px; height: 28px; padding: 0; text-align: center; }
+  .zoom-controls span { font-size: 12px; color: #666; min-width: 40px; text-align: center; }
+
+  /* 预览区域 */
+  .preview-container {
+    flex: 1; overflow: auto; display: flex; justify-content: center;
+    padding: 20px; background: #e8e8e8;
+  }
+  .preview-frame {
+    background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transform-origin: top center; transition: transform 0.2s;
+  }
+  .preview-frame iframe {
+    border: none; width: 210mm; height: 297mm; display: block;
+  }
+  .preview-frame object,
+  .preview-frame embed {
+    border: none; width: 210mm; height: 297mm;
+  }
+
+  /* 加载状态 */
+  .loading {
+    display: flex; align-items: center; justify-content: center;
+    flex: 1; color: #999; font-size: 14px;
+  }
+  .loading::before {
+    content: ''; width: 20px; height: 20px;
+    border: 2px solid #ddd; border-top-color: #1677ff;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* 错误 */
+  .error { text-align: center; padding: 40px; color: #ff4d4f; }
+  .error h2 { font-size: 16px; margin-bottom: 8px; }
+  .error p { color: #666; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>PrintCraft 打印预览</h1>
+
+  <div class="view-toggle">
+    <button id="btn-html-view" class="active" onclick="switchView('html')">HTML</button>
+    <button id="btn-pdf-view" onclick="switchView('pdf')">PDF</button>
+  </div>
+
+  <div class="separator"></div>
+
+  <div class="zoom-controls">
+    <button onclick="zoom(-10)">-</button>
+    <span id="zoom-level">100%</span>
+    <button onclick="zoom(10)">+</button>
+    <button onclick="zoom(0)" style="width:auto;padding:0 6px;">重置</button>
+  </div>
+
+  <div class="separator"></div>
+
+  <button class="btn-print" onclick="doPrint()">打印</button>
+  <button class="btn-close" onclick="window.close()">关闭</button>
+</div>
+
+<div id="preview-area" class="loading">加载预览中...</div>
+
+<script>
+  const PREVIEW_ID = location.pathname.split('/').filter(Boolean).pop();
+  let currentView = 'html';
+  let zoomLevel = 100;
+
+  // 加载 HTML 预览
+  async function loadHtmlPreview() {
+    const area = document.getElementById('preview-area');
+    try {
+      const resp = await fetch(`/api/preview/${PREVIEW_ID}/html`);
+      if (!resp.ok) throw new Error(await resp.text());
+
+      const html = await resp.text();
+      area.className = 'preview-container';
+      area.innerHTML = `
+        <div class="preview-frame" id="preview-frame">
+          <iframe id="preview-iframe" sandbox="allow-same-origin"></iframe>
+        </div>
+      `;
+
+      const iframe = document.getElementById('preview-iframe');
+      iframe.srcdoc = html;
+    } catch (e) {
+      showError(area, e.message);
+    }
+  }
+
+  // 加载 PDF 预览
+  function loadPdfPreview() {
+    const area = document.getElementById('preview-area');
+    const pdfUrl = `/api/preview/${PREVIEW_ID}/pdf`;
+    area.className = 'preview-container';
+    area.innerHTML = `
+      <div class="preview-frame" id="preview-frame">
+        <embed src="${pdfUrl}" type="application/pdf" />
+      </div>
+    `;
+  }
+
+  // 切换视图
+  function switchView(view) {
+    currentView = view;
+    document.getElementById('btn-html-view').className = view === 'html' ? 'active' : '';
+    document.getElementById('btn-pdf-view').className = view === 'pdf' ? 'active' : '';
+
+    if (view === 'html') loadHtmlPreview();
+    else loadPdfPreview();
+  }
+
+  // 缩放
+  function zoom(delta) {
+    if (delta === 0) zoomLevel = 100;
+    else zoomLevel = Math.max(25, Math.min(200, zoomLevel + delta));
+    document.getElementById('zoom-level').textContent = zoomLevel + '%';
+    const frame = document.getElementById('preview-frame');
+    if (frame) frame.style.transform = `scale(${zoomLevel / 100})`;
+  }
+
+  // 打印
+  function doPrint() {
+    if (currentView === 'html') {
+      const iframe = document.getElementById('preview-iframe');
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.print();
+      }
+    } else {
+      // PDF 模式：用 iframe 打印
+      const win = window.open(`/api/preview/${PREVIEW_ID}/pdf`);
+      if (win) {
+        win.onload = () => { win.print(); };
+      }
+    }
+  }
+
+  // 显示错误
+  function showError(area, msg) {
+    area.className = 'error';
+    area.innerHTML = `<h2>加载失败</h2><p>${msg}</p>`;
+  }
+
+  // 初始化
+  if (PREVIEW_ID) {
+    loadHtmlPreview();
+  } else {
+    showError(document.getElementById('preview-area'), '缺少预览 ID');
+  }
+</script>
+
+</body>
+</html>

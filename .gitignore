@@ -1,0 +1,28 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Node
+sdk/node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+*.exe
+*.dmg
+*.msi
+*.deb
+
+# Logs
+*.log
+
+# Config (user-specific)
+.printcraft/

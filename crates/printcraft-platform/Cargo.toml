@@ -1,0 +1,24 @@
+[package]
+name = "printcraft-platform"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "PrintCraft platform-specific printer operations"
+
+[dependencies]
+printcraft-core = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Graphics_Printing",
+    "Win32_Foundation",
+    "Win32_System_Registry",
+    "Win32_Security",
+]}

@@ -1,0 +1,73 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/printcraft-core",
+    "crates/printcraft-platform",
+    "crates/printcraft-render",
+    "crates/printcraft-server",
+    "crates/printcraft-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/yourname/printcraft"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Web server
+axum = { version = "0.7", features = ["ws"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+thiserror = "2"
+
+# Utils
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"
+base64 = "0.22"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.12", features = ["json"] }
+
+# PDF generation
+printpdf = "0.7"
+
+# Image processing
+image = "0.24"
+
+# Barcode
+barcoders = "2"
+qrcode = { version = "0.14", default-features = false }
+
+# Static file embedding
+rust-embed = "8"
+
+# System tray
+tray-icon = "0.19"
+muda = "0.15"
+
+# Auto-launch
+auto-launch = "0.5"
+
+# Platform-specific (conditional)
+# chromiumoxide is referenced directly in printcraft-render/Cargo.toml as optional
+
+# Internal crates
+printcraft-core = { path = "crates/printcraft-core" }
+printcraft-platform = { path = "crates/printcraft-platform" }
+printcraft-render = { path = "crates/printcraft-render" }

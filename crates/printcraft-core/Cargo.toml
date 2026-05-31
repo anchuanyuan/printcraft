@@ -1,0 +1,15 @@
+[package]
+name = "printcraft-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "PrintCraft core types and business logic"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

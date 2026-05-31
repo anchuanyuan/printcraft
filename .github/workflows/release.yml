@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build --release -p printcraft-server -p printcraft-cli
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: printcraft-windows-x64
+          path: |
+            target/release/printcraft.exe
+            target/release/printcraft-server.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build --release -p printcraft-server -p printcraft-cli
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: printcraft-macos-arm64
+          path: |
+            target/release/printcraft
+            target/release/printcraft-server
+
+  build-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build SDK
+        run: |
+          cd sdk
+          npm ci
+          npm run build
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: printcraft-sdk
+          path: sdk/dist/
+
+  release:
+    needs: [build-windows, build-macos, build-sdk]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            printcraft-windows-x64/*
+            printcraft-macos-arm64/*
+            printcraft-sdk/*
+          body: |
+            ## PrintCraft v0.1.0
+
+            开源无水印 Web 打印服务，Lodop 替代品。
+
+            ### 下载
+            - **Windows x64**: `printcraft.exe` + `printcraft-server.exe`
+            - **macOS ARM64**: `printcraft` + `printcraft-server`
+            - **JS SDK**: `printcraft.js`
+
+            ### 快速开始
+            ```bash
+            # 启动服务
+            ./printcraft-server
+
+            # 浏览器中引入 SDK
+            <script src="http://localhost:18000/printcraft.js"></script>
+            ```

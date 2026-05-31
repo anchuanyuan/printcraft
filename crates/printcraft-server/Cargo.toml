@@ -1,0 +1,34 @@
+[package]
+name = "printcraft-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "PrintCraft HTTP/WebSocket print service"
+
+[[bin]]
+name = "printcraft"
+path = "src/main.rs"
+
+[dependencies]
+printcraft-core = { workspace = true }
+printcraft-platform = { workspace = true }
+printcraft-render = { workspace = true }
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rust-embed = { workspace = true }
+tray-icon = { workspace = true }
+muda = { workspace = true }
+auto-launch = { workspace = true }
+anyhow = "1"
+
+[features]
+default = []
+chromium = ["printcraft-render/chromium"]
