@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrintCraft 测试页</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f5; padding: 20px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { color: #333; margin-bottom: 20px; }
+    .status { padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-weight: 500; }
+    .status.connected { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status.disconnected { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .status.connecting { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+    .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .card h2 { font-size: 16px; color: #555; margin-bottom: 16px; }
+    .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .btn-primary { background: #4a90d9; color: white; }
+    .btn-success { background: #28a745; color: white; }
+    .btn-warning { background: #ffc107; color: #333; }
+    .btn-danger { background: #dc3545; color: white; }
+    .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+    textarea { width: 100%; height: 120px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 13px; resize: vertical; }
+    input, select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
+    .form-row { display: flex; gap: 16px; margin-bottom: 12px; align-items: end; }
+    .form-group { flex: 1; }
+    #log { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 8px; font-family: "Cascadia Code", "Fira Code", monospace; font-size: 13px; height: 200px; overflow-y: auto; white-space: pre-wrap; }
+    .log-info { color: #4fc1ff; }
+    .log-success { color: #6a9955; }
+    .log-error { color: #f44747; }
+    .log-warn { color: #cca700; }
+    .printer-list { max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; padding: 8px; }
+    .printer-item { padding: 6px 8px; cursor: pointer; border-radius: 4px; font-size: 13px; }
+    .printer-item:hover { background: #f0f0f0; }
+    .printer-item.selected { background: #4a90d9; color: white; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PrintCraft 测试页</h1>
+
+    <div id="statusBar" class="status connecting">连接中...</div>
+
+    <div class="card">
+      <h2>打印机</h2>
+      <div class="btn-group" style="margin-bottom: 12px;">
+        <button class="btn btn-primary" onclick="refreshPrinters()">刷新打印机列表</button>
+      </div>
+      <div id="printerList" class="printer-list">
+        <div style="color: #999; padding: 8px;">点击"刷新打印机列表"</div>
+      </div>
+      <div style="margin-top: 8px; font-size: 13px; color: #666;">
+        选中: <span id="selectedPrinter">默认打印机</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>快捷测试</h2>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="testText()">测试文字打印</button>
+        <button class="btn btn-primary" onclick="testShape()">测试形状打印</button>
+        <button class="btn btn-primary" onclick="testBarcode()">测试二维码</button>
+        <button class="btn btn-primary" onclick="testTable()">测试表格</button>
+        <button class="btn btn-success" onclick="testPreview()">打印预览</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>自定义打印内容</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>纸张</label>
+          <select id="pageSize">
+            <option value="A4" selected>A4 (210×297mm)</option>
+            <option value="A5">A5 (148×210mm)</option>
+            <option value="B5">B5 (176×250mm)</option>
+            <option value="Letter">Letter (216×279mm)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>方向</label>
+          <select id="orientation">
+            <option value="1">纵向</option>
+            <option value="2">横向</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>份数</label>
+          <input type="number" id="copies" value="1" min="1" max="99" style="width: 80px;">
+        </div>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label>HTML 内容（支持完整 HTML/CSS）</label>
+        <textarea id="htmlContent"><h1 style="color: #4a90d9; font-size: 28px;">PrintCraft 测试</h1>
+<p style="font-size: 16px; margin-top: 16px; line-height: 1.8;">
+  这是 PrintCraft 打印服务的测试页面。<br>
+  支持 <strong>加粗</strong>、<em>斜体</em>、<u>下划线</u> 等样式。<br>
+  支持中文、English、日本語。
+</p>
+<table style="width: 100%; margin-top: 20px; border-collapse: collapse;">
+  <tr style="background: #4a90d9; color: white;">
+    <th style="padding: 8px; border: 1px solid #ddd;">项目</th>
+    <th style="padding: 8px; border: 1px solid #ddd;">数量</th>
+    <th style="padding: 8px; border: 1px solid #ddd;">单价</th>
+  </tr>
+  <tr>
+    <td style="padding: 8px; border: 1px solid #ddd;">PrintCraft Server</td>
+    <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">1</td>
+    <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">免费</td>
+  </tr>
+  <tr style="background: #f9f9f9;">
+    <td style="padding: 8px; border: 1px solid #ddd;">JS SDK</td>
+    <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">1</td>
+    <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">免费</td>
+  </tr>
+</table></textarea>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-success" onclick="customPreview()">预览</button>
+        <button class="btn btn-primary" onclick="customPrint()">打印</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>日志</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <script src="http://localhost:18000/sdk/printcraft.js"></script>
+  <script>
+    let LODOP = null;
+    let selectedPrinter = '';
+
+    function log(msg, type = 'info') {
+      const el = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      el.innerHTML += `<div class="log-${type}">[${time}] ${msg}</div>`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function updateStatus(status, text) {
+      const bar = document.getElementById('statusBar');
+      bar.className = `status ${status}`;
+      bar.textContent = text;
+    }
+
+    function init() {
+      try {
+        LODOP = getLodop();
+        updateStatus('connected', '已连接 PrintCraft 服务 (localhost:18000)');
+        log('PrintCraft SDK 加载成功', 'success');
+        refreshPrinters();
+      } catch (e) {
+        updateStatus('disconnected', '未连接 - 请确保 printcraft-server 已启动');
+        log('连接失败: ' + e.message, 'error');
+      }
+    }
+
+    async function refreshPrinters() {
+      if (!LODOP) { log('未连接服务', 'error'); return; }
+      const count = LODOP.GET_PRINTER_COUNT();
+      log(`发现 ${count} 台打印机`, 'info');
+
+      const list = document.getElementById('printerList');
+      list.innerHTML = '';
+
+      for (let i = 0; i < count; i++) {
+        const name = LODOP.GET_PRINTER_NAME(i);
+        const item = document.createElement('div');
+        item.className = 'printer-item';
+        item.textContent = name;
+        item.onclick = () => {
+          document.querySelectorAll('.printer-item').forEach(el => el.classList.remove('selected'));
+          item.classList.add('selected');
+          selectedPrinter = name;
+          document.getElementById('selectedPrinter').textContent = name;
+          log(`选中打印机: ${name}`, 'info');
+        };
+        list.appendChild(item);
+      }
+    }
+
+    function prepareLodop(taskName) {
+      LODOP.PRINT_INIT(taskName);
+      const orient = parseInt(document.getElementById('orientation').value);
+      const page = document.getElementById('pageSize').value;
+      LODOP.SET_PRINT_PAGESIZE(orient, 0, 0, page);
+      const copies = parseInt(document.getElementById('copies').value);
+      if (copies > 1) LODOP.SET_PRINT_COPIES(copies);
+      if (selectedPrinter) LODOP.SET_PRINTER_INDEX(selectedPrinter);
+    }
+
+    function testText() {
+      if (!LODOP) return;
+      prepareLodop('文字测试');
+      LODOP.SET_PRINT_STYLE('FontSize', 18);
+      LODOP.SET_PRINT_STYLE('Bold', true);
+      LODOP.ADD_PRINT_TEXT(50, 50, 400, 40, 'PrintCraft 文字打印测试');
+
+      LODOP.SET_PRINT_STYLE('FontSize', 12);
+      LODOP.SET_PRINT_STYLE('Bold', false);
+      LODOP.ADD_PRINT_TEXT(100, 50, 400, 30, '支持中文、English、日本語');
+      LODOP.ADD_PRINT_TEXT(140, 50, 400, 30, '字号、字体、颜色、对齐全支持');
+
+      LODOP.SET_PRINT_STYLE('FontColor', '#FF0000');
+      LODOP.ADD_PRINT_TEXT(180, 50, 400, 30, '红色文字 - FontColor: #FF0000');
+
+      LODOP.SET_PRINT_STYLE('FontColor', '#0000FF');
+      LODOP.SET_PRINT_STYLE('Alignment', 2);
+      LODOP.ADD_PRINT_TEXT(220, 50, 400, 30, '蓝色右对齐');
+
+      LODOP.PRINT();
+      log('文字打印已发送', 'success');
+    }
+
+    function testShape() {
+      if (!LODOP) return;
+      prepareLodop('形状测试');
+      LODOP.ADD_PRINT_RECT(50, 50, 200, 100, 0, 2);
+      LODOP.ADD_PRINT_RECT(80, 80, 200, 100, 1, 1);
+      LODOP.ADD_PRINT_LINE(50, 50, 350, 250, 0, 1);
+      LODOP.ADD_PRINT_ELLIPSE(300, 50, 150, 150, 0, 2);
+      LODOP.PRINT();
+      log('形状打印已发送', 'success');
+    }
+
+    function testBarcode() {
+      if (!LODOP) return;
+      prepareLodop('条码测试');
+      LODOP.SET_PRINT_STYLE('FontSize', 12);
+      LODOP.ADD_PRINT_TEXT(50, 50, 200, 20, 'QR Code:');
+      LODOP.ADD_PRINT_BARCODE(80, 50, 200, 200, 'QRCode', 'https://github.com/anchuanyuan/printcraft');
+      LODOP.ADD_PRINT_TEXT(80, 300, 200, 20, 'Code128:');
+      LODOP.ADD_PRINT_BARCODE(110, 300, 300, 80, 'Code128', 'PRINTCRAFT2024');
+      LODOP.PRINT();
+      log('条码打印已发送', 'success');
+    }
+
+    function testTable() {
+      if (!LODOP) return;
+      prepareLodop('表格测试');
+      LODOP.ADD_PRINT_TABLE(50, 50, 500, 400, `
+        <table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse:collapse; font-size:14px;">
+          <tr style="background:#4a90d9; color:white;">
+            <th>商品名称</th><th>数量</th><th>单价</th><th>小计</th>
+          </tr>
+          <tr><td>PrintCraft Server</td><td style="text-align:center">1</td><td style="text-align:right">¥0</td><td style="text-align:right">¥0</td></tr>
+          <tr style="background:#f9f9f9"><td>JS SDK</td><td style="text-align:center">1</td><td style="text-align:right">¥0</td><td style="text-align:right">¥0</td></tr>
+          <tr><td>CLI 工具</td><td style="text-align:center">1</td><td style="text-align:right">¥0</td><td style="text-align:right">¥0</td></tr>
+          <tr style="font-weight:bold; background:#e8f4e8;">
+            <td colspan="3" style="text-align:right">合计</td>
+            <td style="text-align:right; color:#28a745;">¥0 (开源免费)</td>
+          </tr>
+        </table>
+      `);
+      LODOP.PRINT();
+      log('表格打印已发送', 'success');
+    }
+
+    async function testPreview() {
+      if (!LODOP) return;
+      prepareLodop('预览测试');
+      LODOP.SET_PRINT_STYLE('FontSize', 16);
+      LODOP.SET_PRINT_STYLE('Bold', true);
+      LODOP.ADD_PRINT_TEXT(50, 50, 400, 30, 'PrintCraft 打印预览测试');
+      LODOP.SET_PRINT_STYLE('FontSize', 12);
+      LODOP.SET_PRINT_STYLE('Bold', false);
+      LODOP.ADD_PRINT_TEXT(100, 50, 400, 60, '这是预览功能的测试。\n可以看到打印效果后再决定是否打印。');
+      const result = await LODOP.PREVIEW();
+      log(result ? '预览窗口已打开' : '预览失败', result ? 'success' : 'error');
+    }
+
+    function customPrint() {
+      if (!LODOP) return;
+      prepareLodop('自定义打印');
+      const html = document.getElementById('htmlContent').value;
+      LODOP.ADD_PRINT_HTM(50, 50, 600, 800, html);
+      LODOP.PRINT();
+      log('自定义内容已打印', 'success');
+    }
+
+    async function customPreview() {
+      if (!LODOP) return;
+      prepareLodop('自定义预览');
+      const html = document.getElementById('htmlContent').value;
+      LODOP.ADD_PRINT_HTM(50, 50, 600, 800, html);
+      const result = await LODOP.PREVIEW();
+      log(result ? '预览窗口已打开' : '预览失败', result ? 'success' : 'error');
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
