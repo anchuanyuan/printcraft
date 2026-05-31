@@ -36,6 +36,9 @@ export class Lodop {
     this.taskName = strTaskName || '';
     this.elements = [];
     this.currentStyle = {};
+    this.printer = '';
+    this.copies = 1;
+    this.pageSize = { orientation: 1, width: 0, height: 0, name: 'A4' };
     return true;
   }
 
@@ -257,7 +260,9 @@ export class Lodop {
   async PRINT(): Promise<boolean> {
     const job = this.buildJob();
     const result = await this.connection.send('PRINT', job);
-    return result?.ok ?? false;
+    if (result?.ok) return true;
+    console.warn('PrintCraft: PRINT 失败', result?.error);
+    return false;
   }
 
   /**

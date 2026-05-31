@@ -45,12 +45,22 @@ const WM_CLOSE: u32 = 0x0010;
 /// 策略:
 /// 1. 查找内嵌的 SumatraPDF.exe → 静默打印
 /// 2. 回退到 ShellExecuteW "printto" → 弹出选择对话框（仅首次）
+///
+/// 如果 printer_name 为空，自动使用系统默认打印机。
 pub fn print_pdf(
     printer_name: &str,
     pdf_data: &[u8],
     copies: u32,
     job_name: &str,
 ) -> Result<()> {
+    // 解析打印机名称: 空则使用默认打印机
+    let actual_printer = if printer_name.is_empty() {
+        let default = super::winspool::get_default_printer()?;
+        tracing::info!("未指定打印机，使用默认: {}", default.name);
+        default.name
+    } else {
+        printer_name.to_string()
+    };
     // 1. 写入临时文件
     let tmp_path = create_temp_pdf_path(job_name)?;
     std::fs::write(&tmp_path, pdf_data).map_err(|e| {
@@ -59,7 +69,7 @@ pub fn print_pdf(
 
     // 2. 尝试 SumatraPDF 静默打印
     if let Some(sumatra) = find_sumatra_pdf() {
-        let result = print_with_sumatra(&sumatra, &tmp_path, printer_name, copies);
+        let result = print_with_sumatra(&sumatra, &tmp_path, &actual_printer, copies);
         let _ = std::fs::remove_file(&tmp_path);
         return result;
     }
@@ -68,7 +78,7 @@ pub fn print_pdf(
     tracing::warn!(
         "未找到 SumatraPDF.exe，使用 ShellExecuteW printto（可能弹出对话框）"
     );
-    let result = print_with_shell_execute(&tmp_path, printer_name);
+    let result = print_with_shell_execute(&tmp_path, &actual_printer);
     let _ = std::fs::remove_file(&tmp_path);
     result
 }

@@ -165,12 +165,19 @@
   // 打印
   function doPrint() {
     if (currentView === 'html') {
-      const iframe = document.getElementById('preview-iframe');
-      if (iframe?.contentWindow) {
-        iframe.contentWindow.print();
-      }
+      // HTML 模式：获取 HTML 内容，在新窗口中打印
+      fetch(`/api/preview/${PREVIEW_ID}/html`)
+        .then(r => r.text())
+        .then(html => {
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.write(html);
+            win.document.close();
+            win.onload = () => { win.print(); };
+          }
+        });
     } else {
-      // PDF 模式：用 iframe 打印
+      // PDF 模式：用新窗口打印
       const win = window.open(`/api/preview/${PREVIEW_ID}/pdf`);
       if (win) {
         win.onload = () => { win.print(); };

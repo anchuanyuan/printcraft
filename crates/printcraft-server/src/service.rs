@@ -522,33 +522,54 @@ impl PrintService {
         Ok(serde_json::json!({ "ok": true }))
     }
 
-    /// 从 args 构建 job（如果 current_job 为空）
-    fn get_or_create_job(&mut self, args: &serde_json::Value) -> Result<PrintJob> {
-        if self.current_job.is_some() {
-            return Ok(self.current_job.take().unwrap());
-        }
-        // 从 args 创建 job
+    /// 从 SDK args 构建 PrintJob
+    ///
+    /// SDK 发送的数据结构与 Rust PrintJob 不同:
+    /// - pageSize: {orientation, width, height, name} → page_config
+    /// - elements[]: {type, position, style, content/html/code/...} → PrintElement
+    fn build_job_from_sdk_args(args: &serde_json::Value) -> PrintJob {
         let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("print");
         let printer = args.get("printer").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let copies = args.get("copies").and_then(|v| v.as_u64()).unwrap_or(1) as u32;
-        let elements: Vec<printcraft_core::PrintElement> = args.get("elements")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default();
-        let page_config: printcraft_core::PageConfig = args.get("pageConfig")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default();
 
         let mut job = PrintJob::new(name);
         job.printer = printer;
         job.copies = copies;
-        job.elements = elements;
-        job.page_config = page_config;
-        Ok(job)
+
+        // 解析 pageSize → page_config
+        if let Some(ps) = args.get("pageSize") {
+            if let Some(orient) = ps.get("orientation").and_then(|v| v.as_i64()) {
+                job.page_config.orientation = match orient {
+                    2 => PageOrientation::Landscape,
+                    _ => PageOrientation::Portrait,
+                };
+            }
+            if let Some(w) = ps.get("width").and_then(|v| v.as_f64()) {
+                job.page_config.width = w;
+            }
+            if let Some(h) = ps.get("height").and_then(|v| v.as_f64()) {
+                job.page_config.height = h;
+            }
+            if let Some(name) = ps.get("name").and_then(|v| v.as_str()) {
+                job.page_config.page_name = name.to_string();
+            }
+        }
+
+        // 解析 elements
+        if let Some(elems) = args.get("elements").and_then(|v| v.as_array()) {
+            for elem_json in elems {
+                if let Some(element) = parse_sdk_element(elem_json) {
+                    job.add_element(element);
+                }
+            }
+        }
+
+        job
     }
 
     /// PRINT - 提交打印任务
     async fn cmd_print(&mut self, args: &serde_json::Value) -> Result<serde_json::Value> {
-        let job = self.get_or_create_job(args)?;
+        let job = Self::build_job_from_sdk_args(args);
 
         tracing::info!("PRINT: rendering job '{}' with {} elements", job.name, job.elements.len());
 
@@ -574,10 +595,7 @@ impl PrintService {
 
     /// PREVIEW - 渲染为 HTML + PDF，存储并返回预览 ID
     async fn cmd_preview(&mut self, args: &serde_json::Value) -> Result<serde_json::Value> {
-        let job = match &self.current_job {
-            Some(j) => j.clone(),
-            None => self.get_or_create_job(args)?,
-        };
+        let job = Self::build_job_from_sdk_args(args);
 
         tracing::info!("PREVIEW: rendering job '{}' for preview", job.name);
 
@@ -716,6 +734,68 @@ fn parse_barcode_type(s: &str) -> BarcodeType {
         "PDF417" => BarcodeType::PDF417,
         _ => BarcodeType::Code128,
     }
+}
+
+/// 解析 SDK 发送的单个元素 JSON → PrintElement
+fn parse_sdk_element(json: &serde_json::Value) -> Option<PrintElement> {
+    let el_type = json.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    let pos = json.get("position")?;
+    let position = ElementPosition {
+        top: pos.get("top").and_then(|v| v.as_f64()).unwrap_or(0.0),
+        left: pos.get("left").and_then(|v| v.as_f64()).unwrap_or(0.0),
+        width: pos.get("width").and_then(|v| v.as_f64()).unwrap_or(100.0),
+        height: pos.get("height").and_then(|v| v.as_f64()).unwrap_or(30.0),
+    };
+
+    let kind = match el_type {
+        "text" => PrintElementKind::Text {
+            content: json.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        },
+        "rect" => PrintElementKind::Rect {
+            border_width: json.get("lineWidth").and_then(|v| v.as_f64()).unwrap_or(1.0),
+            border_style: json.get("lineStyle").and_then(|v| v.as_u64()).unwrap_or(0) as u8,
+        },
+        "line" => {
+            let end_left = position.left + position.width;
+            let end_top = position.top + position.height;
+            PrintElementKind::Line {
+                end_top,
+                end_left,
+                line_style: json.get("lineStyle").and_then(|v| v.as_u64()).unwrap_or(0) as u8,
+                line_width: json.get("lineWidth").and_then(|v| v.as_f64()).unwrap_or(1.0),
+            }
+        }
+        "ellipse" => PrintElementKind::Ellipse {
+            border_width: json.get("lineWidth").and_then(|v| v.as_f64()).unwrap_or(1.0),
+        },
+        "image" => PrintElementKind::Image {
+            src: json.get("src").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        },
+        "htm" | "table" => PrintElementKind::Html {
+            html_content: json.get("html").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        },
+        "url" => PrintElementKind::Url {
+            url: json.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        },
+        "barcode" => PrintElementKind::Barcode {
+            code: json.get("code").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            barcode_type: parse_barcode_type(json.get("barType").and_then(|v| v.as_str()).unwrap_or("128")),
+        },
+        "shape" => PrintElementKind::Shape {
+            shape_type: json.get("shapeType").and_then(|v| v.as_u64()).unwrap_or(0) as u8,
+            border_width: json.get("lineWidth").and_then(|v| v.as_f64()).unwrap_or(1.0),
+            border_style: json.get("lineStyle").and_then(|v| v.as_u64()).unwrap_or(0) as u8,
+            color: json.get("color").and_then(|v| v.as_str()).unwrap_or("#000000").to_string(),
+        },
+        _ => return None,
+    };
+
+    Some(PrintElement {
+        index: 0, // add_element 会自动分配
+        position,
+        style: None,
+        kind,
+    })
 }
 
 /// 简单的 base64 编码（无外部依赖）

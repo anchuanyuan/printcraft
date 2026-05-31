@@ -98,12 +98,14 @@ impl PdfRenderer for SimplePdfRenderer {
                 } => {
                     render_shape(&layer, x_mm, pdf_y, w_mm, h_mm, *border_width, *border_style, color);
                 }
-                PrintElementKind::Html { .. }
-                | PrintElementKind::Table { .. }
-                | PrintElementKind::Url { .. } => {
-                    return Err(PrintCraftError::Unsupported(
-                        "HTML rendering requires Chromium engine".into(),
-                    ));
+                PrintElementKind::Html { html_content }
+                | PrintElementKind::Table { html_content } => {
+                    // HTML 降级为纯文本渲染（无 Chromium 时的回退）
+                    let text = strip_html_tags(html_content);
+                    render_text(&layer, &font, &text, &style, &elem.position, page_h);
+                }
+                PrintElementKind::Url { url } => {
+                    render_text(&layer, &font, url, &style, &elem.position, page_h);
                 }
             }
         }
@@ -251,6 +253,28 @@ fn wrap_text(content: &str, width_mm: f32, font_size: f32) -> Vec<String> {
 
 fn estimate_text_width_mm(text: &str, font_size: f32) -> f32 {
     text.len() as f32 * font_size * 0.5 * 0.3528
+}
+
+/// 去除 HTML 标签，提取纯文本内容（简单实现）
+fn strip_html_tags(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut in_tag = false;
+    for ch in html.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => result.push(ch),
+            _ => {}
+        }
+    }
+    // 解码常见 HTML 实体
+    result
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&nbsp;", " ")
+        .replace("&#39;", "'")
 }
 
 fn render_rect(
@@ -600,14 +624,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_html_returns_error() {
+    async fn test_html_fallback_to_text() {
         let mut job = PrintJob::new("html-test");
         job.add_element(make_element(PrintElementKind::Html {
-            html_content: "<b>test</b>".into(),
+            html_content: "<b>Hello</b> <i>World</i>".into(),
         }));
         let renderer = SimplePdfRenderer::new();
-        let result = renderer.render(&job).await;
-        assert!(result.is_err());
+        let pdf = renderer.render(&job).await.unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
     }
 
     #[tokio::test]
