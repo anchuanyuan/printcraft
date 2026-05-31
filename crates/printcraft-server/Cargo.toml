@@ -6,7 +6,7 @@ license.workspace = true
 description = "PrintCraft HTTP/WebSocket print service"
 
 [[bin]]
-name = "printcraft"
+name = "printcraft-server"
 path = "src/main.rs"
 
 [dependencies]
