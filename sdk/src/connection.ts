@@ -50,9 +50,39 @@ export class Connection {
     return '127.0.0.1';
   }
 
+  /** 获取 script 所在端口 */
+  private detectPort(): number | null {
+    if (typeof document !== 'undefined') {
+      const scripts = document.querySelectorAll('script[src*="printcraft.js"]');
+      if (scripts.length > 0) {
+        try {
+          const url = new URL((scripts[0] as HTMLScriptElement).src);
+          return parseInt(url.port) || (url.protocol === 'https:' ? 443 : 80);
+        } catch {}
+      }
+    }
+    return null;
+  }
+
   /** 自动发现端口并连接 */
   private async connect(): Promise<void> {
     const host = this.detectHost();
+    const scriptPort = this.detectPort();
+
+    // 先尝试 script 同源（Vite 代理等场景）
+    if (scriptPort && scriptPort >= 3000 && scriptPort <= 65535) {
+      try {
+        await this.tryConnect(host, scriptPort);
+        this.port = scriptPort;
+        this.connected = true;
+        this.reconnectDelay = 1000;
+        this.startHeartbeat();
+        console.log(`PrintCraft: 已连接 ${host}:${scriptPort} (via proxy)`);
+        return;
+      } catch {}
+    }
+
+    // 再尝试标准端口
     for (let port = 18000; port <= 18005; port++) {
       try {
         await this.tryConnect(host, port);
