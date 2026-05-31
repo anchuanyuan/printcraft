@@ -163,14 +163,14 @@
 
     async function refreshPrinters() {
       if (!LODOP) { log('未连接服务', 'error'); return; }
-      const count = LODOP.GET_PRINTER_COUNT();
+      const count = await LODOP.GET_PRINTER_COUNT();
       log(`发现 ${count} 台打印机`, 'info');
 
       const list = document.getElementById('printerList');
       list.innerHTML = '';
 
       for (let i = 0; i < count; i++) {
-        const name = LODOP.GET_PRINTER_NAME(i);
+        const name = await LODOP.GET_PRINTER_NAME(i);
         const item = document.createElement('div');
         item.className = 'printer-item';
         item.textContent = name;
@@ -195,7 +195,7 @@
       if (selectedPrinter) LODOP.SET_PRINTER_INDEX(selectedPrinter);
     }
 
-    function testText() {
+    async function testText() {
       if (!LODOP) return;
       prepareLodop('文字测试');
       LODOP.SET_PRINT_STYLE('FontSize', 18);
@@ -214,22 +214,22 @@
       LODOP.SET_PRINT_STYLE('Alignment', 2);
       LODOP.ADD_PRINT_TEXT(220, 50, 400, 30, '蓝色右对齐');
 
-      LODOP.PRINT();
+      await LODOP.PRINT();
       log('文字打印已发送', 'success');
     }
 
-    function testShape() {
+    async function testShape() {
       if (!LODOP) return;
       prepareLodop('形状测试');
       LODOP.ADD_PRINT_RECT(50, 50, 200, 100, 0, 2);
       LODOP.ADD_PRINT_RECT(80, 80, 200, 100, 1, 1);
       LODOP.ADD_PRINT_LINE(50, 50, 350, 250, 0, 1);
       LODOP.ADD_PRINT_ELLIPSE(300, 50, 150, 150, 0, 2);
-      LODOP.PRINT();
+      await LODOP.PRINT();
       log('形状打印已发送', 'success');
     }
 
-    function testBarcode() {
+    async function testBarcode() {
       if (!LODOP) return;
       prepareLodop('条码测试');
       LODOP.SET_PRINT_STYLE('FontSize', 12);
@@ -237,11 +237,11 @@
       LODOP.ADD_PRINT_BARCODE(80, 50, 200, 200, 'QRCode', 'https://github.com/anchuanyuan/printcraft');
       LODOP.ADD_PRINT_TEXT(80, 300, 200, 20, 'Code128:');
       LODOP.ADD_PRINT_BARCODE(110, 300, 300, 80, 'Code128', 'PRINTCRAFT2024');
-      LODOP.PRINT();
+      await LODOP.PRINT();
       log('条码打印已发送', 'success');
     }
 
-    function testTable() {
+    async function testTable() {
       if (!LODOP) return;
       prepareLodop('表格测试');
       LODOP.ADD_PRINT_TABLE(50, 50, 500, 400, `
@@ -258,7 +258,7 @@
           </tr>
         </table>
       `);
-      LODOP.PRINT();
+      await LODOP.PRINT();
       log('表格打印已发送', 'success');
     }
 
@@ -275,12 +275,12 @@
       log(result ? '预览窗口已打开' : '预览失败', result ? 'success' : 'error');
     }
 
-    function customPrint() {
+    async function customPrint() {
       if (!LODOP) return;
       prepareLodop('自定义打印');
       const html = document.getElementById('htmlContent').value;
       LODOP.ADD_PRINT_HTM(50, 50, 600, 800, html);
-      LODOP.PRINT();
+      await LODOP.PRINT();
       log('自定义内容已打印', 'success');
     }
 

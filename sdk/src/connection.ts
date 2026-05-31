@@ -13,6 +13,16 @@ interface PendingRequest {
   reject: (reason: any) => void;
 }
 
+/** 兼容 HTTP 的 UUID 生成 */
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxx-xxxx-xxxx'.replace(/x/g, () =>
+    Math.floor(Math.random() * 16).toString(16)
+  );
+}
+
 export class Connection {
   private ws: WebSocket | null = null;
   private port: number = 0;
@@ -116,7 +126,7 @@ export class Connection {
         return;
       }
 
-      const id = crypto.randomUUID();
+      const id = generateId();
       this.pending.set(id, { resolve, reject });
 
       const msg = JSON.stringify({ id, cmd, args });
