@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 
-const TARGET = 'http://10.211.55.3:18001';
+// const TARGET = 'http://10.211.55.3:18000';
+const TARGET = 'http://localhost:18000';
 
 export default defineConfig({
   root: '.',
@@ -11,6 +12,7 @@ export default defineConfig({
       // 代理 SDK 和 API 到 Windows VM
       '/sdk': TARGET,
       '/api': TARGET,
+      '/preview': TARGET,
       '/ws': {
         target: TARGET.replace('http', 'ws'),
         ws: true,
